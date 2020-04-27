@@ -1,1 +1,1 @@
-# slack-message-mover
+# message-mover
