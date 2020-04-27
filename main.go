@@ -40,7 +40,13 @@ func parseMoveCommandArgs (cmdArgs string) moveCommandArgs {
     ms := messagesTotal[0]
     me := messagesTotal[1]
     msstr, err := strconv.Atoi(ms)
+    if err != nil {
+        fmt.Println(err)
+    }
     mestr, err := strconv.Atoi(me)
+    if err != nil {
+        fmt.Println(err)
+    }
     mph := splitArgs[1]
     tph := splitArgs[2]
     channel := splitArgs[3]
