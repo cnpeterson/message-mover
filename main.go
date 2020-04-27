@@ -2,8 +2,10 @@ package main
 
 import (
     "net/http"
-    "strings"
     "fmt"
+    "log"
+    "os"
+    "github.com/joho/godotenv"
     "github.com/nlopes/slack"
     )
 
@@ -26,13 +28,13 @@ func moveMessagesHandler(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    if !s.ValidateToken("905b8f07df16deb786fd568f9e016dd6") {
+    if !s.ValidateToken(os.Getenv("SLACK_VERIFICATION_TOKEN")) {
         w.WriteHeader(http.StatusUnauthorized)
         return
     }
 
     switch s.Command {
-    case "/command/move":
+    case "/move":
         params := &slack.Msg{Text: s.Text}
         response := fmt.Sprintf("You asked for the weather for %v", params.Text)
         w.Write([]byte(response))
@@ -42,11 +44,15 @@ func moveMessagesHandler(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-
 }
 
 func main() {
-    http.HandleFunc("/command/move", moveMessagesHandler)
+    err := godotenv.Load("environment.env")
+    if err != nil {
+        log.Fatal("Error loading .env file")
+    }
+
+    http.HandleFunc("/command", moveMessagesHandler)
     if err := http.ListenAndServe(":8080", nil); err != nil {
         panic(err)
     }
