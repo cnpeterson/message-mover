@@ -3,6 +3,8 @@ package main
 import (
     "net/http"
     "strings"
+    "fmt"
+    "github.com/nlopes/slack"
     )
 
 type slackRequest struct {
@@ -17,17 +19,35 @@ type slackRequest struct {
     responseUrl string
 }
 
-func moveMessages(w http.ResponseWriter, r *http.Request) {
-    message := r.URL.Path
-    message = strings.TrimPrefix(message, "/")
-    message = "Hello " + message
+func moveMessagesHandler(w http.ResponseWriter, r *http.Request) {
+    s, err := slack.SlashCommandParse(r)
+    if err != nil {
+        w.WriteHeader(http.StatusInternalServerError)
+        return
+    }
 
-    w.Write([]byte(message))
+    if !s.ValidateToken("905b8f07df16deb786fd568f9e016dd6") {
+        w.WriteHeader(http.StatusUnauthorized)
+        return
+    }
+
+    switch s.Command {
+    case "/command/move":
+        params := &slack.Msg{Text: s.Text}
+        response := fmt.Sprintf("You asked for the weather for %v", params.Text)
+        w.Write([]byte(response))
+
+    default:
+        w.WriteHeader(http.StatusInternalServerError)
+        return
+    }
+
+
 }
 
 func main() {
-    http.HandleFunc("/command/move", moveMessages)
-    if err := http.ListenAndServe(":443", nil); err != nil {
+    http.HandleFunc("/command/move", moveMessagesHandler)
+    if err := http.ListenAndServe(":8080", nil); err != nil {
         panic(err)
     }
 }
