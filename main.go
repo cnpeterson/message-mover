@@ -34,27 +34,35 @@ type moveCommandArgs struct {
 }
 
 
-func parseMoveCommandArgs (cmdArgs string) moveCommandArgs {
+func parseMoveCommandArgs (cmds *moveCommandArgs, cmdArgs string) (err error) {
     splitArgs := strings.Fields(cmdArgs)
-    messagesTotal := strings.Split(splitArgs[0], "-")
-    ms := messagesTotal[0]
-    me := messagesTotal[1]
-    msstr, err := strconv.Atoi(ms)
-    if err != nil {
-        fmt.Println(err)
+    if len(splitArgs) <= 5 {
+        err := fmt.Errorf("Incorrect arguements, arguements must be in this format")
+        log.Fatal(err)
+        return err
+    } else {
+        messagesTotal := strings.Split(splitArgs[0], "-")
+        ms := messagesTotal[0]
+        me := messagesTotal[1]
+        msint, err := strconv.Atoi(ms)
+        if err != nil {
+            fmt.Println(err)
+        } else {
+            cmds.messageStart = msint
+        }
+        meint, err := strconv.Atoi(me)
+        if err != nil {
+            fmt.Println(err)
+        } else {
+            cmds.messageEnd = meint
+        }
+        cmds.messagesPlaceHolder = splitArgs[1]
+        cmds.toPlaceholder = splitArgs[2]
+        cmds.channel = splitArgs[3]
+        cmds.titlePlaceHolder = splitArgs[4]
+        cmds.title = strings.Join(splitArgs[5:], " ")
+        return err
     }
-    mestr, err := strconv.Atoi(me)
-    if err != nil {
-        fmt.Println(err)
-    }
-    mph := splitArgs[1]
-    tph := splitArgs[2]
-    channel := splitArgs[3]
-    tiph := splitArgs[4]
-    ti := strings.Join(splitArgs[5:], " ")
-
-    cmds := moveCommandArgs{msstr, mestr, mph, tph, channel, tiph, ti}
-    return cmds
 
 }
 
@@ -74,7 +82,12 @@ func moveMessagesHandler(w http.ResponseWriter, r *http.Request) {
     switch s.Command {
     case "/move":
         params := &slack.Msg{Text: s.Text}
-        cmds := parseMoveCommandArgs(params.Text)
+        cmds := moveCommandArgs{}
+        err := parseMoveCommandArgs(&cmds, params.Text)
+        if err != nil {
+            w.WriteHeader(500)
+            return
+        }
         response := fmt.Sprintf("You want to move messages for %v", cmds)
         w.Write([]byte(response))
 
