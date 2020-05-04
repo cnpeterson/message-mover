@@ -10,7 +10,6 @@ import (
     "strings"
     "strconv"
     "github.com/joho/godotenv"
-    "io/ioutil"
     "crypto/hmac"
     "crypto/sha256"
     "encoding/hex"
@@ -166,7 +165,6 @@ func parseMoveCommandArgs (cmds *MoveCommandArgs, cmdArgs string) (err error) {
 
 func SlackCommandHandler(w http.ResponseWriter, r *http.Request) {
     fmt.Println("received request")
-    fmt.Printf("%s", r.Body)
     s, err := SlackCommandParse(r)
     if err != nil {
         fmt.Println("Error parsing slack command")
@@ -205,12 +203,22 @@ func SlackCommandHandler(w http.ResponseWriter, r *http.Request) {
         // creating string to be compared to X-Slack-Signature 
         b.WriteString(a.VersionNumber)
         b.WriteString(":")
-        ts := strconv.FormatInt(a.XSlackRequestTimestamp, 0)
+        ts := strconv.FormatInt(a.XSlackRequestTimestamp, 10)
         b.WriteString(ts)
-        b.WriteString(":")
-        body, _ := ioutil.ReadAll(r.Body)
-        sb := string(body)
-        b.WriteString(sb)
+	fmt.Println("--------")
+	l := len(r.PostForm)
+	count := 0
+	for k, v := range r.PostForm {
+            b.WriteString(k)
+	    b.WriteString("=")
+	    s := strings.Join(v, " ")
+	    b.WriteString(s)
+	    fmt.Printf("l: %s, count: %s", l, count)
+	    if count <= l { 
+	        b.WriteString("&")
+            }
+	    count += 1
+	}
         as = b.String()
         b.Reset()
         // creating hex to compare with X-Slack-Signature
