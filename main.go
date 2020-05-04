@@ -13,6 +13,7 @@ import (
     "crypto/hmac"
     "crypto/sha256"
     "encoding/hex"
+    "net/url"
     )
 
 type SlackCommandRequest struct {
@@ -205,20 +206,21 @@ func SlackCommandHandler(w http.ResponseWriter, r *http.Request) {
         b.WriteString(":")
         ts := strconv.FormatInt(a.XSlackRequestTimestamp, 10)
         b.WriteString(ts)
-	fmt.Println("--------")
-	l := len(r.PostForm)
-	count := 0
-	for k, v := range r.PostForm {
+        b.WriteString(":")
+	    l := len(r.PostForm)
+	    count := 0
+	    for k, v := range r.PostForm {
             b.WriteString(k)
-	    b.WriteString("=")
-	    s := strings.Join(v, " ")
-	    b.WriteString(s)
-	    fmt.Printf("l: %s, count: %s", l, count)
-	    if count <= l { 
-	        b.WriteString("&")
+	        b.WriteString("=")
+	        s := strings.Join(v, " ")
+            su := url.QueryEscape(s)
+	        b.WriteString(su)
+	        fmt.Printf("l: %s, count: %s", strconv.Itoa(l), strconv.Itoa(count))
+	        if count <= l {
+	            b.WriteString("&")
             }
-	    count += 1
-	}
+	        count += 1
+	    }
         as = b.String()
         b.Reset()
         // creating hex to compare with X-Slack-Signature
