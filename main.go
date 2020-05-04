@@ -124,7 +124,10 @@ func (s *SlackCommandRequest) TokenIsValid(t string) bool {
 }
 
 func (a *SlackCommandAuthHeaders) SignatureIsValid(sig []byte) bool {
-    ba := []byte(a.XSlackSignature)
+    ba, err := hex.DecodeString(strings.TrimPrefix(a.XSlackSignature, "v0="))
+    if err != nil {
+        return false
+    }
     if hmac.Equal(ba, sig)  {
         return true
     } else {
@@ -208,7 +211,7 @@ func SlackCommandHandler(w http.ResponseWriter, r *http.Request) {
         ts := strconv.FormatInt(a.XSlackRequestTimestamp, 10)
         b.WriteString(ts)
         b.WriteString(":")
-	    l := len(r.PostForm)
+	    l := len(r.PostForm) - 1
 	    count := 0
 	    for k, v := range r.PostForm {
             b.WriteString(k)
@@ -217,7 +220,7 @@ func SlackCommandHandler(w http.ResponseWriter, r *http.Request) {
             su := url.QueryEscape(s)
 	        b.WriteString(su)
 	        fmt.Printf("l: %s, count: %s", strconv.Itoa(l), strconv.Itoa(count))
-	        if count <= l {
+	        if count < l {
 	            b.WriteString("&")
             }
 	        count += 1
@@ -225,21 +228,17 @@ func SlackCommandHandler(w http.ResponseWriter, r *http.Request) {
         as = b.String()
         b.Reset()
         // creating hex to compare with X-Slack-Signature
-        b.WriteString(a.VersionNumber)
-        b.WriteString("=")
         sec := os.Getenv("SLACK_SIGNING_SECRET")
         fmt.Printf("Secret: %s Data: %s\n", sec, as)
         h := hmac.New(sha256.New, []byte(sec))
         h.Write([]byte(as))
-        sha := hex.EncodeToString(h.Sum(nil))
-        fmt.Println("Result: " + sha)
-        b.WriteString(sha)
-        sig = b.Bytes()
+        sig = h.Sum(nil)
+        fmt.Println("Result: " + string(sig))
         b.Reset()
         // comparing X-Slack-Signature and our string
         if !a.SignatureIsValid(sig) {
             fmt.Println("sigs don't match")
-            fmt.Printf("Sig: %s RequestSig: %s", sig, a.XSlackSignature)
+            fmt.Printf("Sig: %s RequestSig: %s", hex.EncodeToString(sig), a.XSlackSignature)
             w.WriteHeader(http.StatusUnauthorized)
             return
         }
