@@ -123,8 +123,9 @@ func (s *SlackCommandRequest) TokenIsValid(t string) bool {
     }
 }
 
-func (a *SlackCommandAuthHeaders) SignatureIsValid(sig string) bool {
-    if sig == a.XSlackSignature {
+func (a *SlackCommandAuthHeaders) SignatureIsValid(sig []byte) bool {
+    ba := []byte(a.XSlackSignature)
+    if hmac.Equal(ba, sig)  {
         return true
     } else {
         return false
@@ -192,7 +193,7 @@ func SlackCommandHandler(w http.ResponseWriter, r *http.Request) {
         // authenticate
         var b bytes.Buffer
         var as string
-        var sig string
+        var sig []byte
 
         a, err := NewAuthHeaders(r)
         if err != nil {
@@ -233,7 +234,7 @@ func SlackCommandHandler(w http.ResponseWriter, r *http.Request) {
         sha := hex.EncodeToString(h.Sum(nil))
         fmt.Println("Result: " + sha)
         b.WriteString(sha)
-        sig = b.String()
+        sig = b.Bytes()
         b.Reset()
         // comparing X-Slack-Signature and our string
         if !a.SignatureIsValid(sig) {
