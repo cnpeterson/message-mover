@@ -11,19 +11,6 @@ import (
     "os"
     )
 
-type SlackCommandRequest struct {
-    Token        string `json:"token"`
-    Command      string `json:"command"`
-    Text         string `json:"text"`
-    ResponseUrl  string `json:"response_url"`
-    TriggerId    string `json:"trigger_id"`
-    UserId       string `json:"user_id"`
-    UserName     string `json:"user_name"`
-    TeamId       string `json:"team_id"`
-    EnterpriseId string `json:"enterprise_id"`
-    ChannelId    string `json:"channel_id"`
-}
-
 type MoveCommandArgs struct {
     MessageStart        int    `json:"message_start"`
     MessageEnd          int    `json:"message_end"`
@@ -61,27 +48,6 @@ type SlackConvoHistoryResponse struct {
 
 type ResponseMetadata struct {
     NextCursor string `json:"next_cursor"`
-}
-
-type Message struct {
-    Text string `json:"text"`
-}
-
-func SlackCommandParse (r *http.Request) (s SlackCommandRequest, err error) {
-    if err = r.ParseForm(); err != nil {
-        return s, err
-    }
-    s.Token = r.PostForm.Get("token")
-    s.Command = r.PostForm.Get("command")
-    s.Text = r.PostForm.Get("text")
-    s.ResponseUrl = r.PostForm.Get("response_url")
-    s.TriggerId = r.PostForm.Get("trigger_id")
-    s.UserId = r.PostForm.Get("user_id")
-    s.UserName = r.PostForm.Get("user_name")
-    s.TeamId = r.PostForm.Get("team_id")
-    s.EnterpriseId = r.PostForm.Get("enterprise_id")
-    s.ChannelId = r.PostForm.Get("channel_id")
-    return s, err
 }
 
 func parseMoveCommandArgs (cmds *MoveCommandArgs, cmdArgs string) (err error) {
@@ -137,7 +103,7 @@ func SlackCommandHandler(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    s, err := SlackCommandParse(r)
+    s, err := slack.CmdRequestParse(r)
     if err != nil {
         fmt.Println("Error parsing slack command")
         w.WriteHeader(http.StatusInternalServerError)
@@ -146,9 +112,8 @@ func SlackCommandHandler(w http.ResponseWriter, r *http.Request) {
 
     switch s.Command {
     case "/move":
-        params := &Message{Text: s.Text}
         cmds := MoveCommandArgs{}
-        err := parseMoveCommandArgs(&cmds, params.Text)
+        err := parseMoveCommandArgs(&cmds, s.Text)
         if err != nil {
             w.WriteHeader(500)
             return
