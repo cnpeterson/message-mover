@@ -125,15 +125,22 @@ func SlackCommandHandler(w http.ResponseWriter, r *http.Request) {
         w.WriteHeader(http.StatusUnauthorized)
     }
     // authenticate
-    auth, err := slack.auth.Authentication(r, secret)
+    a, err := slack.Authentication(r, secret)
     if err != nil {
         w.WriteHeader(http.StatusUnauthorized)
         return
     }
 
-    if !auth.SignatureIsValid() {
+    if !a.SignatureIsValid() {
         fmt.Println("signatures do not match")
         w.WriteHeader(http.StatusUnauthorized)
+        return
+    }
+
+    s, err := SlackCommandParse(r)
+    if err != nil {
+        fmt.Println("Error parsing slack command")
+        w.WriteHeader(http.StatusInternalServerError)
         return
     }
 
