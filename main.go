@@ -1,19 +1,14 @@
 package main
 
 import (
-    "time"
     "net/http"
-    "bytes"
     "fmt"
     "log"
-    "os"
     "strings"
     "strconv"
     "github.com/joho/godotenv"
-    "crypto/hmac"
-    "crypto/sha256"
-    "encoding/hex"
-    "net/url"
+    "github.com/cnpeterson/slack"
+    "os"
     )
 
 type SlackCommandRequest struct {
@@ -72,32 +67,6 @@ type Message struct {
     Text string `json:"text"`
 }
 
-type SlackCommandAuthHeaders struct {
-    XSlackRequestTimestamp int64
-    XSlackSignature        string
-    VersionNumber          string
-}
-
-func NewAuthHeaders(r *http.Request) (a SlackCommandAuthHeaders, err error) {
-    // VersionNumber is always v0 with current slack API
-    t := r.Header.Get("X-Slack-Request-Timestamp")
-    s := r.Header.Get("X-Slack-Signature")
-    ti, err := strconv.ParseInt(t, 0, 64)
-    if err != nil {
-        fmt.Println(err)
-        return a, err
-    }
-    now := time.Now()
-    sec := now.Unix()
-    // Checking to see if request is more than five minutes from local time
-    if (ti - sec) > 60 * 5 {
-        err = fmt.Errorf("Request older than 5 minutes")
-        return a, err
-    }
-    a = SlackCommandAuthHeaders{ti, s, "v0"}
-    return a, err
-}
-
 func SlackCommandParse (r *http.Request) (s SlackCommandRequest, err error) {
     if err = r.ParseForm(); err != nil {
         return s, err
@@ -113,26 +82,6 @@ func SlackCommandParse (r *http.Request) (s SlackCommandRequest, err error) {
     s.EnterpriseId = r.PostForm.Get("enterprise_id")
     s.ChannelId = r.PostForm.Get("channel_id")
     return s, err
-}
-
-func (s *SlackCommandRequest) TokenIsValid(t string) bool {
-    if len(s.Token) > 0 && s.Token == t {
-        return true
-    } else {
-        return false
-    }
-}
-
-func (a *SlackCommandAuthHeaders) SignatureIsValid(sig []byte) bool {
-    ba, err := hex.DecodeString(strings.TrimPrefix(a.XSlackSignature, "v0="))
-    if err != nil {
-        return false
-    }
-    if hmac.Equal(ba, sig)  {
-        return true
-    } else {
-        return false
-    }
 }
 
 func parseMoveCommandArgs (cmds *MoveCommandArgs, cmdArgs string) (err error) {
@@ -170,16 +119,20 @@ func parseMoveCommandArgs (cmds *MoveCommandArgs, cmdArgs string) (err error) {
 
 func SlackCommandHandler(w http.ResponseWriter, r *http.Request) {
     fmt.Println("received request")
-    s, err := SlackCommandParse(r)
+    secret := os.Getenv("SLACK_SIGNING_SECRET")
+    if len(secret) <= 0 {
+        fmt.Println("missing env variable SLACK_SIGNING_SECRET")
+        w.WriteHeader(http.StatusUnauthorized)
+    }
+    // authenticate
+    auth, err := slack.auth.Authentication(r, secret)
     if err != nil {
-        fmt.Println("Error parsing slack command")
-        w.WriteHeader(http.StatusInternalServerError)
+        w.WriteHeader(http.StatusUnauthorized)
         return
     }
 
-    // validate token
-    if !s.TokenIsValid(os.Getenv("SLACK_VERIFICATION_TOKEN")) {
-        fmt.Println("incorrect slack verification token")
+    if !auth.SignatureIsValid() {
+        fmt.Println("signatures do not match")
         w.WriteHeader(http.StatusUnauthorized)
         return
     }
@@ -191,55 +144,6 @@ func SlackCommandHandler(w http.ResponseWriter, r *http.Request) {
         err := parseMoveCommandArgs(&cmds, params.Text)
         if err != nil {
             w.WriteHeader(500)
-            return
-        }
-        // authenticate
-        var b bytes.Buffer
-        var as string
-        var sig []byte
-
-        a, err := NewAuthHeaders(r)
-        if err != nil {
-            fmt.Println(err)
-            w.WriteHeader(500)
-            return
-        }
-
-        // creating string to be compared to X-Slack-Signature 
-        b.WriteString(a.VersionNumber)
-        b.WriteString(":")
-        ts := strconv.FormatInt(a.XSlackRequestTimestamp, 10)
-        b.WriteString(ts)
-        b.WriteString(":")
-	    l := len(r.PostForm) - 1
-	    count := 0
-	    for k, v := range r.PostForm {
-            b.WriteString(k)
-	        b.WriteString("=")
-	        s := strings.Join(v, " ")
-            su := url.QueryEscape(s)
-	        b.WriteString(su)
-	        fmt.Printf("l: %s, count: %s", strconv.Itoa(l), strconv.Itoa(count))
-	        if count < l {
-	            b.WriteString("&")
-            }
-	        count += 1
-	    }
-        as = b.String()
-        b.Reset()
-        // creating hex to compare with X-Slack-Signature
-        sec := os.Getenv("SLACK_SIGNING_SECRET")
-        fmt.Printf("Secret: %s Data: %s\n", sec, as)
-        h := hmac.New(sha256.New, []byte(sec))
-        h.Write([]byte(as))
-        sig = h.Sum(nil)
-        fmt.Println("Result: " + string(sig))
-        b.Reset()
-        // comparing X-Slack-Signature and our string
-        if !a.SignatureIsValid(sig) {
-            fmt.Println("sigs don't match")
-            fmt.Printf("Sig: %s RequestSig: %s", hex.EncodeToString(sig), a.XSlackSignature)
-            w.WriteHeader(http.StatusUnauthorized)
             return
         }
 
